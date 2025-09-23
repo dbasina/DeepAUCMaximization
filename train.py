@@ -6,25 +6,26 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from train_utils import train_one_epoch
 import os
-from dataloader import CheXpert, build_ts_transformations, build_eval_transformations
+from dataloader import CheXpert
 from models import create_ensemble
 from tqdm import trange,tqdm
 
 # Define paths, create necessary directories
-train_csv_path = "./CheXpert/train.csv"
-val_csv_path = "./CheXpert/valid.csv"
-test_csv_path = "./CheXpert/test.csv"
-train_images_path = "./CheXpert/train"
-val_images_path = "./CheXpert/valid"
-test_images_path = "./CheXpert/test"
+train_csv_path = "/scratch/dbasina/CheXpert-v1.0/CheXpert-v1.0/train.csv"
+val_csv_path = "/scratch/dbasina/CheXpert-v1.0/CheXpert-v1.0/valid.csv"
+test_csv_path = "/scratch/dbasina/CheXpert-v1.0/CheXpert-v1.0/test.csv"
+train_images_path = "/scratch/dbasina/CheXpert-v1.0/CheXpert-v1.0/train"
+val_images_path = "/scratch/dbasina/CheXpert-v1.0/CheXpert-v1.0/valid"
+test_images_path = "/scratch/dbasina/CheXpert-v1.0/CheXpert-v1.0/test"
+image_root_path = "/scratch/dbasina/CheXpert-v1.0/CheXpert-v1.0"
 os.makedirs("Outputs", exist_ok=True)
 os.makedirs("Outputs/models", exist_ok=True)
 os.makedirs("Outputs/logs", exist_ok=True)
 log_file = open("Outputs/logs/training_log.log", "w")
 
 # Hyperparameters, Devices, Datasets, DataLoaders
-batch_size = 4
-num_epochs = 20
+batch_size = 32
+num_epochs = 2
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model = create_ensemble().to(device)
@@ -35,33 +36,28 @@ model = nn.DataParallel(model)
 # test_ds  = CheXpert(test_images_path, test_csv_path,  augment=build_eval_transformations())
 
 train_ds = CheXpert(
-    csv_path="./CheXpert/train.csv",
-    image_root_path="./CheXpert/",
+    csv_path=train_csv_path,
+    image_root_path=image_root_path,
     image_size=320,
+    mode="train",
     use_frontal=True,
     use_upsampling=True,
-    mode="train",
-    class_index=-1,  # 5-class multilabel
 )
-
 val_ds = CheXpert(
-    csv_path="./CheXpert/valid.csv",
-    image_root_path="./CheXpert/",
+    csv_path=val_csv_path,
+    image_root_path=image_root_path,
     image_size=320,
-    use_frontal=True,
-    use_upsampling=False,  # IMPORTANT: never upsample val/test
     mode="valid",
-    class_index=-1,
-)
-
-test_ds = CheXpert(
-    csv_path="./CheXpert/test.csv",
-    image_root_path="./CheXpert/",
-    image_size=320,
-    use_frontal=True,
+    use_frontal=True,      # set False if valid.csv lacks the column
     use_upsampling=False,
+)
+test_ds = CheXpert(
+    csv_path=test_csv_path,
+    image_root_path=image_root_path,
+    image_size=320,
     mode="valid",
-    class_index=-1,
+    use_frontal=True,      # set False if test.csv lacks the column
+    use_upsampling=False,
 )
 
 train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True)

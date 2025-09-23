@@ -69,12 +69,15 @@ def train_one_epoch(dataloader, val_loader, model, optimizer, scheduler, loss, b
             val_predictions = torch.cat(val_predictions).numpy()
             val_labels = torch.cat(val_labels).numpy()
             val_AUC_mean, per_class = compute_AUC(val_labels, val_predictions)
-            log_file.write(f"Stage {stage} Epoch {epoch}, Step {step+1}, Validation AUC: {val_AUC_mean:.4f}, Current Best AUC: {bestAUC:.4f}, Per-Class AUC: {per_class}\n")
-            log_file.flush()
+            
             # Save the best model
             if val_AUC_mean > bestAUC:
                 bestAUC = val_AUC_mean
                 torch.save(model.state_dict(), f"Outputs/models/best_model.pth")
+            
+            # Log Results
+            log_file.write(f"Stage {stage} Epoch {epoch}, Step {step+1}, Validation AUC: {val_AUC_mean:.4f}, Current Best AUC: {bestAUC:.4f}, Per-Class AUC: {per_class}\n")
+            log_file.flush()
             model.train()
         
         #Learning rate scheduler step can be added here if needed
