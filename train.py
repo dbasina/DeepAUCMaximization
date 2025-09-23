@@ -30,9 +30,39 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model = create_ensemble().to(device)
 model = nn.DataParallel(model)
 
-train_ds = CheXpert(train_images_path, train_csv_path, augment=build_ts_transformations())
-val_ds   = CheXpert(val_images_path, val_csv_path,   augment=build_eval_transformations())
-test_ds  = CheXpert(test_images_path, test_csv_path,  augment=build_eval_transformations())
+# train_ds = CheXpert(train_images_path, train_csv_path, augment=build_ts_transformations())
+# val_ds   = CheXpert(val_images_path, val_csv_path,   augment=build_eval_transformations())
+# test_ds  = CheXpert(test_images_path, test_csv_path,  augment=build_eval_transformations())
+
+train_ds = CheXpert(
+    csv_path="./CheXpert/train.csv",
+    image_root_path="./CheXpert/",
+    image_size=320,
+    use_frontal=True,
+    use_upsampling=True,
+    mode="train",
+    class_index=-1,  # 5-class multilabel
+)
+
+val_ds = CheXpert(
+    csv_path="./CheXpert/valid.csv",
+    image_root_path="./CheXpert/",
+    image_size=320,
+    use_frontal=True,
+    use_upsampling=False,  # IMPORTANT: never upsample val/test
+    mode="valid",
+    class_index=-1,
+)
+
+test_ds = CheXpert(
+    csv_path="./CheXpert/test.csv",
+    image_root_path="./CheXpert/",
+    image_size=320,
+    use_frontal=True,
+    use_upsampling=False,
+    mode="valid",
+    class_index=-1,
+)
 
 train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True)
 val_loader   = DataLoader(val_ds,   batch_size=batch_size, shuffle=False, num_workers=4, pin_memory=True)
@@ -56,8 +86,8 @@ for epoch in trange(num_epochs, desc = "Epochs"):
 #Train Stage 2: Using MultiLabelAUCMLoss and PESG optimizer for finetuning, reset the final fc layer
 stage = 2
 model.module.fc.reset_parameters()
-imratio = [0.2021] * 5
-loss = MultiLabelAUCMLoss(num_labels=5, device = device, imratio = imratio)
+imratio_list = getattr(train_ds, "imratio_list", None)
+loss = MultiLabelAUCMLoss(num_labels=5, device = device, imratio = imratio_list)
 optimizer = PESG(model.parameters(),loss_fn = loss, lr=0.1, weight_decay=0)
 scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=2000, gamma=0.1)
 
