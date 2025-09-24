@@ -9,15 +9,16 @@ import os
 from dataloader import CheXpert
 from models import create_ensemble
 from tqdm import trange,tqdm
+from torch.utils.data import Subset
 
 # Define paths, create necessary directories
-train_csv_path = "/scratch/dbasina/CheXpert-v1.0/CheXpert-v1.0/train.csv"
-val_csv_path = "/scratch/dbasina/CheXpert-v1.0/CheXpert-v1.0/valid.csv"
-test_csv_path = "/scratch/dbasina/CheXpert-v1.0/CheXpert-v1.0/test.csv"
-train_images_path = "/scratch/dbasina/CheXpert-v1.0/CheXpert-v1.0/train"
-val_images_path = "/scratch/dbasina/CheXpert-v1.0/CheXpert-v1.0/valid"
-test_images_path = "/scratch/dbasina/CheXpert-v1.0/CheXpert-v1.0/test"
-image_root_path = "/scratch/dbasina/CheXpert-v1.0/CheXpert-v1.0"
+train_csv_path = "./CheXpert-mini/train.csv"
+val_csv_path = "./CheXpert-mini/valid.csv"
+test_csv_path = "./CheXpert-mini/test.csv"
+train_images_path = "./CheXpert-mini/train"
+val_images_path = "./CheXpert-mini/valid"
+test_images_path = "./CheXpert-mini/test"
+image_root_path = "./CheXpert-mini"
 os.makedirs("Outputs", exist_ok=True)
 os.makedirs("Outputs/models", exist_ok=True)
 os.makedirs("Outputs/logs", exist_ok=True)
@@ -34,6 +35,7 @@ model = nn.DataParallel(model)
 # train_ds = CheXpert(train_images_path, train_csv_path, augment=build_ts_transformations())
 # val_ds   = CheXpert(val_images_path, val_csv_path,   augment=build_eval_transformations())
 # test_ds  = CheXpert(test_images_path, test_csv_path,  augment=build_eval_transformations())
+
 
 train_ds = CheXpert(
     csv_path=train_csv_path,
@@ -60,6 +62,14 @@ test_ds = CheXpert(
     use_upsampling=False,
 )
 
+# Create subset dataloaders for quick testing
+subset_train_indices = list(range(50))
+subset_val_indices = list(range(10))
+train_subset_ds = Subset(train_ds, subset_train_indices)
+train_subset_loader = DataLoader(train_subset_ds, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True)
+val_subset_ds = Subset(val_ds, subset_val_indices)
+val_subset_loader = DataLoader(val_subset_ds, batch_size=batch_size, shuffle=False, num_workers=4, pin_memory=True)
+
 train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True)
 val_loader   = DataLoader(val_ds,   batch_size=batch_size, shuffle=False, num_workers=4, pin_memory=True)
 test_loader  = DataLoader(test_ds,  batch_size=batch_size, shuffle=False, num_workers=4, pin_memory=True)
@@ -76,10 +86,10 @@ scheduler = None
 log_file.write(f"Starting Stage {stage} Training\n")
 log_file.flush()
 for epoch in trange(num_epochs, desc = "Epochs"):
-    train_loss, bestAUC = train_one_epoch(train_loader,val_loader, model, optimizer, scheduler, loss, bestAUC, stage, epoch, log_file, device)
+    train_loss, bestAUC = train_one_epoch(train_subset_loader,val_subset_loader, model, optimizer, scheduler, loss, bestAUC, stage, epoch, log_file, device)
 
 
-#Train Stage 2: Using MultiLabelAUCMLoss and PESG optimizer for finetuning, reset the final fc layer
+#Train Stage 2: Using MultiLabelAUCMLoss and PESG optimizer for finetuning, reset the final fc layer before stage 2.
 stage = 2
 model.module.fc.reset_parameters()
 imratio_list = getattr(train_ds, "imratio_list", None)
@@ -90,7 +100,7 @@ scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=2000, gamma=0.1
 log_file.write(f"Starting Stage {stage} Training\n")
 log_file.flush()
 for epoch in trange(num_epochs, desc="Epochs"):
-    train_loss, bestAUC = train_one_epoch(train_loader,val_loader, model, optimizer, scheduler,loss, bestAUC, stage, epoch, device)
+    train_loss, bestAUC = train_one_epoch(train_subset_loader,val_subset_loader, model, optimizer, scheduler,loss, bestAUC, stage, epoch, log_file, device)
     log_file.write(f"Epoch [{epoch+1}/{num_epochs}], Train Loss: {train_loss:.4f}\n")
 
 # Save the final model
@@ -100,10 +110,6 @@ torch.save(model.state_dict(), "Outputs/models/final_model.pth")
 log_file.write(f"Training complete. Best AUC: {bestAUC:.4f}\n")
 log_file.write("Model saved to Outputs/models/final_model.pth\n")
 log_file.flush()
-
-
-# # Evaluate on the test set
-# test(model, test_loader, device)
 
 # Close the log file
 log_file.close()
