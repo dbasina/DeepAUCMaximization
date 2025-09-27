@@ -31,11 +31,9 @@ def compute_AUC(val_labels, val_predictions):
         val_AUC_mean = float(np.nanmean(per_class))
     return val_AUC_mean, per_class
 
-def train_one_epoch(dataloader, val_loader, model, optimizer, scheduler, loss, bestAUC, stage, epoch, log_file, device):
-    criterion = loss
+def train_one_epoch(dataloader, val_loader, model, optimizer, loss_fn, bestAUC, stage, epoch, log_file, device, milestones):
     model.train()
     total_loss = 0.0
-
     progress_bar = tqdm(dataloader, desc="Training", leave=False)
     for step, (images, labels) in enumerate(progress_bar):
         images = images.to(device)
@@ -43,12 +41,15 @@ def train_one_epoch(dataloader, val_loader, model, optimizer, scheduler, loss, b
 
         optimizer.zero_grad()
         outputs = model(images)
-        loss = criterion(outputs, labels)
+        loss = loss_fn(outputs, labels)
         loss.backward()
         clip_grad_norm_(model.parameters(), max_norm=2.0)
         optimizer.step()
         if stage == 2:
-            scheduler.step()
+            gstep = optimizer.optim_step
+
+        if stage == 2 and gstep in milestones:
+            optimizer.update_lr(decay_factor=3)
         total_loss += loss.item() * images.size(0)
 
         progress_bar.set_postfix({"step": step + 1})
@@ -73,10 +74,10 @@ def train_one_epoch(dataloader, val_loader, model, optimizer, scheduler, loss, b
             # Save the best model
             if val_AUC_mean > bestAUC:
                 bestAUC = val_AUC_mean
-                torch.save(model.state_dict(), f"Outputs/models/best_model.pth")
+                torch.save(model.state_dict(), f"Outputs/models/best_model_gamma{gamma:.6f}.pth")
             
             # Log Results
-            log_file.write(f"Stage {stage} Epoch {epoch}, Step {step+1}, Validation AUC: {val_AUC_mean:.4f}, Current Best AUC: {bestAUC:.4f}, Per-Class AUC: {per_class}\n")
+            log_file.write(f"Stage {stage}, Epoch {epoch}, Step {step+1}, Gamma {optimizer.epoch_decay}, Validation AUC: {val_AUC_mean:.4f}, Current Best AUC: {bestAUC:.4f}, Per-Class AUC: {per_class}\n")
             log_file.flush()
             model.train()
         

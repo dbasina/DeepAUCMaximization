@@ -14,9 +14,9 @@ from train_utils import compute_AUC
 
 # Define paths, create necessary directories
 
-test_csv_path = "/scratch/dbasina/CheXpert-v1.0/CheXpert-v1.0/test.csv"
-test_images_path = "/scratch/dbasina/CheXpert-v1.0/CheXpert-v1.0/test"
-image_root_path = "/scratch/dbasina/CheXpert-v1.0/CheXpert-v1.0"
+test_csv_path = "./CheXpert-mini/test.csv"
+test_images_path = "./CheXpert-mini/test"
+image_root_path = "./CheXpert-mini"
 
 # Hyperparameters, Devices, Datasets, DataLoaders
 batch_size = 4
@@ -69,6 +69,6 @@ def test(model, test_loader, device):
 
 model = create_ensemble().to(device)
 model = nn.DataParallel(model)
-checkpoint = torch.load('./Outputs/models/best_model.pth', map_location=device)
+checkpoint = torch.load('./Outputs/models/final_model.pth', map_location=device)
 model.load_state_dict(checkpoint)
 test(model, test_loader, device)
