@@ -6,7 +6,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from train_utils import train_one_epoch
 import os
-from dataloader import CheXpert
+from dataset import CheXpert
 from models import create_ensemble
 from tqdm import trange,tqdm
 from torch.utils.data import Subset
@@ -65,7 +65,6 @@ def test(model, test_loader, device):
         test_log_file.write(f"  Class {i}: AUC = {auc:.4f}\n")
 
     test_log_file.close()
-
 
 model = create_ensemble().to(device)
 model = nn.DataParallel(model)
